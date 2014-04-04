@@ -40,6 +40,11 @@ class WordsRange;
 class ChartRuleLookupManagerMemory : public ChartRuleLookupManagerCYKPlus
 {
 public:
+  typedef std::pair<size_t, const ChartCellLabel*> ChartCellPos;
+  typedef std::vector<ChartCellPos> ChartCellVector;
+  typedef std::vector<ChartCellVector> ChartCellMatrix;
+
+
   ChartRuleLookupManagerMemory(const ChartParser &parser,
                                const ChartCellCollectionBase &cellColl,
                                const PhraseDictionaryMemory &ruleTable);
@@ -68,10 +73,9 @@ private:
 
   void AddAndExtend(
     const PhraseDictionaryNodeMemory *node,
-    size_t endPos,
-    const ChartCellLabel *cellLabel);
+    size_t endPos);
 
-  void CreateSparseCellVector(size_t startPos,
+  void CreateFastLookupVectors(size_t startPos,
     size_t endPos);
 
   const PhraseDictionaryMemory &m_ruleTable;
@@ -89,7 +93,7 @@ private:
   StackVec m_stackVec;
   ChartParserCallback* m_outColl;
 
-  std::vector<std::vector<std::vector<std::pair<size_t, const ChartCellLabel*> > > > m_sparseCellVector;
+  std::vector<ChartCellMatrix> m_fastLookupVector;
 
 
 };
