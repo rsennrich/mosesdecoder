@@ -53,19 +53,26 @@ public:
 
 private:
 
-void GetTerminalExtension(
+  void GetTerminalExtension(
     const PhraseDictionaryNodeMemory *node,
     size_t pos);
 
-void GetNonTerminalExtension(
+  void GetNonTerminalExtensionFixedSpan(
     const PhraseDictionaryNodeMemory *node,
     size_t startPos,
     size_t endPos);
+
+  void GetNonTerminalExtension(
+    const PhraseDictionaryNodeMemory *node,
+    size_t startPos);
 
   void AddAndExtend(
     const PhraseDictionaryNodeMemory *node,
     size_t endPos,
     const ChartCellLabel *cellLabel);
+
+  void CreateSparseCellVector(size_t startPos,
+    size_t endPos);
 
   const PhraseDictionaryMemory &m_ruleTable;
 
@@ -81,6 +88,9 @@ void GetNonTerminalExtension(
 
   StackVec m_stackVec;
   ChartParserCallback* m_outColl;
+
+  std::vector<std::vector<std::vector<std::pair<size_t, const ChartCellLabel*> > > > m_sparseCellVector;
+
 
 };
 
