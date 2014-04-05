@@ -63,7 +63,7 @@ void ChartRuleLookupManagerMemory::GetChartRuleCollection(
   m_outColl = &outColl;
   m_unaryPos = absEndPos-1; // rules ending in this position are unary and should not be added to collection
 
-  CreateFastLookupVectors(startPos, lastPos);
+  CreateFastLookupVectors(startPos+1, lastPos);
 
   const PhraseDictionaryNodeMemory &rootNode = m_ruleTable.GetRootNode();
 
@@ -101,6 +101,10 @@ void ChartRuleLookupManagerMemory::GetChartRuleCollection(
 void ChartRuleLookupManagerMemory::CreateFastLookupVectors(size_t firstPos,
     size_t lastPos) {
 
+    if (firstPos > lastPos) {
+        return;
+    }
+
     size_t numNonTerms = FactorCollection::Instance().GetNumNonTerminals();
 
     //re-use data structure from last step, but remove chart cells that would break max-chart-span
@@ -109,12 +113,8 @@ void ChartRuleLookupManagerMemory::CreateFastLookupVectors(size_t firstPos,
         ChartCellMatrix & cellMatrix = m_fastLookupVector[startPos];
         cellMatrix.resize(numNonTerms);
         for (size_t i = 0; i < numNonTerms; i++) {
-            ChartCellVector &matches = cellMatrix[i];
-            for (size_t j = 0; j < matches.size(); j++) {
-                if (matches[j].first > lastPos) {
-                    matches.resize(j);
-                    break;
-                }
+            if (!cellMatrix[i].empty() && cellMatrix[i].back().first > lastPos) {
+                cellMatrix[i].pop_back();
             }
         }
     }
@@ -150,7 +150,6 @@ void ChartRuleLookupManagerMemory::CreateFastLookupVectors(size_t firstPos,
             }
         }
     }
-
 }
 
 // if a (partial) rule matches, add it to list completed rules (if non-unary and non-empty), and try find expansions that have this partial rule as prefix.
@@ -283,7 +282,7 @@ void ChartRuleLookupManagerMemory::GetNonTerminalExtension(
     const PhraseDictionaryNodeMemory *node,
     size_t startPos) {
 
-    const ChartCellMatrix &fastLookup = m_fastLookupVector.at(startPos);
+    const ChartCellMatrix &fastLookup = m_fastLookupVector[startPos];
 
     // non-terminal labels in phrase dictionary node
     const PhraseDictionaryNodeMemory::NonTerminalMap & nonTermMap = node->GetNonTerminalMap();
@@ -298,25 +297,24 @@ void ChartRuleLookupManagerMemory::GetNonTerminalExtension(
 #else
       const Word &targetNonTerm = p->first.second;
 #endif
+      const PhraseDictionaryNodeMemory *child = &p->second;
       //soft matching of NTs
       if (m_isSoftMatching && !m_softMatchingMap[targetNonTerm[0]->GetId()].empty()) {
         const std::vector<Word>& softMatches = m_softMatchingMap[targetNonTerm[0]->GetId()];
-        const PhraseDictionaryNodeMemory &child = p->second;
         for (std::vector<Word>::const_iterator softMatch = softMatches.begin(); softMatch != softMatches.end(); ++softMatch) {
-          const ChartCellVector &matches = fastLookup.at((*softMatch)[0]->GetId());
+          const ChartCellVector &matches = fastLookup[(*softMatch)[0]->GetId()];
           for (ChartCellVector::const_iterator match = matches.begin(); match != matches.end(); ++match) {
             m_stackVec.push_back(match->second);
-            AddAndExtend(&child, match->first);
+            AddAndExtend(child, match->first);
             m_stackVec.pop_back();
           }
         }
       } // end of soft matches lookup
 
-      const PhraseDictionaryNodeMemory &child = p->second;
       const ChartCellVector &matches = fastLookup[targetNonTerm[0]->GetId()];
       for (ChartCellVector::const_iterator match = matches.begin(); match != matches.end(); ++match) {
         m_stackVec.push_back(match->second);
-        AddAndExtend(&child, match->first);
+        AddAndExtend(child, match->first);
         m_stackVec.pop_back();
       }
     }
