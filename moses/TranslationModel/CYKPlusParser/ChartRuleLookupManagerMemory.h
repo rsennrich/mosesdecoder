@@ -23,8 +23,12 @@
 
 #include <vector>
 
+#ifdef USE_BOOST_POOL
+#include <boost/pool/object_pool.hpp>
+#endif
+
 #include "ChartRuleLookupManagerCYKPlus.h"
-#include "CompletedRuleCollection.h"
+#include "DotChartInMemory.h"
 #include "moses/NonTerminal.h"
 #include "moses/TranslationModel/PhraseDictionaryMemory.h"
 #include "moses/TranslationModel/PhraseDictionaryNodeMemory.h"
@@ -34,6 +38,7 @@ namespace Moses
 {
 
 class ChartParserCallback;
+class DottedRuleColl;
 class WordsRange;
 
 //! Implementation of ChartRuleLookupManager for in-memory rule tables.
@@ -44,44 +49,33 @@ public:
                                const ChartCellCollectionBase &cellColl,
                                const PhraseDictionaryMemory &ruleTable);
 
-  ~ChartRuleLookupManagerMemory() {};
+  ~ChartRuleLookupManagerMemory();
 
   virtual void GetChartRuleCollection(
     const WordsRange &range,
-    size_t lastPos, // last position to consider if using lookahead
+    size_t lastPos, //unused
     ChartParserCallback &outColl);
 
 private:
-
-void GetTerminalExtension(
-    const PhraseDictionaryNodeMemory *node,
-    size_t pos);
-
-void GetNonTerminalExtension(
-    const PhraseDictionaryNodeMemory *node,
+  void ExtendPartialRuleApplication(
+    const DottedRuleInMemory &prevDottedRule,
     size_t startPos,
-    size_t endPos);
-
-  void AddAndExtend(
-    const PhraseDictionaryNodeMemory *node,
     size_t endPos,
-    const ChartCellLabel *cellLabel);
+    size_t stackInd,
+    DottedRuleColl &dottedRuleColl);
 
+  std::vector<DottedRuleColl*> m_dottedRuleColls;
   const PhraseDictionaryMemory &m_ruleTable;
+#ifdef USE_BOOST_POOL
+  // Use an object pool to allocate the dotted rules for this sentence.  We
+  // allocate a lot of them and this has been seen to significantly improve
+  // performance, especially for multithreaded decoding.
+  boost::object_pool<DottedRuleInMemory> m_dottedRulePool;
+#endif
 
   // permissible soft nonterminal matches (target side)
   bool m_isSoftMatching;
   const std::vector<std::vector<Word> >& m_softMatchingMap;
-
-  // temporary storage of completed rules (one collection per end position; all rules collected consecutively start from the same position)
-  std::vector<CompletedRuleCollection> m_completedRules;
-
-  size_t m_lastPos;
-  size_t m_unaryPos;
-
-  StackVec m_stackVec;
-  ChartParserCallback* m_outColl;
-
 };
 
 }  // namespace Moses
