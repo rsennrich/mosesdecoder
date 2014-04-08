@@ -63,7 +63,10 @@ void ChartRuleLookupManagerMemory::GetChartRuleCollection(
   m_outColl = &outColl;
   m_unaryPos = absEndPos-1; // rules ending in this position are unary and should not be added to collection
 
-  CreateFastLookupVectors(startPos+1, lastPos);
+  // create/update data structure to quickly look up all chart cells that match start position and label.
+  if (startPos == absEndPos) {
+    CreateFastLookupVectors(startPos+1, lastPos);
+  }
 
   const PhraseDictionaryNodeMemory &rootNode = m_ruleTable.GetRootNode();
 
