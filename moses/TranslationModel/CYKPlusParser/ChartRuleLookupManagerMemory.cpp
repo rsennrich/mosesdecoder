@@ -20,6 +20,7 @@
 #include <iostream>
 #include "ChartRuleLookupManagerMemory.h"
 #include "DotChartInMemory.h"
+#include "CompletedRuleCollection.h"
 
 #include "moses/ChartParser.h"
 #include "moses/InputType.h"
@@ -79,6 +80,9 @@ void ChartRuleLookupManagerMemory::GetChartRuleCollection(
 {
   size_t relEndPos = range.GetEndPos() - range.GetStartPos();
   size_t absEndPos = range.GetEndPos();
+
+  // not necessary for normal search, but implements rule pruning for incremental search
+  CompletedRuleCollection tmpColl = CompletedRuleCollection();
 
   // MAIN LOOP. create list of nodes of target phrases
 
@@ -191,9 +195,14 @@ void ChartRuleLookupManagerMemory::GetChartRuleCollection(
     const TargetPhraseCollection &tpc = node.GetTargetPhraseCollection();
 
     // add the fully expanded rule (with lexical target side)
-    AddCompletedRule(dottedRule, tpc, range, outColl);
+    AddCompletedRule(dottedRule, tpc, tmpColl, outColl);
   }
 
+  for (vector<CompletedRule*>::const_iterator iter = tmpColl.begin(); iter != tmpColl.end(); ++iter) {
+    outColl.Add((*iter)->GetTPC(), (*iter)->GetStackVector(), range);
+  }
+
+  tmpColl.Clear();
   dottedRuleCol.Clear(relEndPos+1);
 }
 

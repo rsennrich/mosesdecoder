@@ -30,6 +30,7 @@ namespace Moses
 class DottedRule;
 class TargetPhraseCollection;
 class WordsRange;
+class CompletedRuleCollection;
 
 /** @todo what is this?
  */
@@ -45,6 +46,12 @@ protected:
     const DottedRule &dottedRule,
     const TargetPhraseCollection &tpc,
     const WordsRange &range,
+    ChartParserCallback &outColl);
+
+  void AddCompletedRule(
+    const DottedRule &dottedRule,
+    const TargetPhraseCollection &tpc,
+    CompletedRuleCollection &tmpColl,
     ChartParserCallback &outColl);
 
   StackVec m_stackVec;

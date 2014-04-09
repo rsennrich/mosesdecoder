@@ -19,6 +19,7 @@
 
 #include "ChartRuleLookupManagerCYKPlus.h"
 #include "DotChartInMemory.h"
+#include "CompletedRuleCollection.h"
 
 #include "moses/InputType.h"
 #include "moses/StaticData.h"
@@ -59,5 +60,37 @@ void ChartRuleLookupManagerCYKPlus::AddCompletedRule(
   // Add the (TargetPhraseCollection, StackVec) pair to the collection.
   outColl.Add(tpc, m_stackVec, range);
 }
+
+
+void ChartRuleLookupManagerCYKPlus::AddCompletedRule(
+  const DottedRule &dottedRule,
+  const TargetPhraseCollection &tpc,
+  CompletedRuleCollection &tmpColl,
+  ChartParserCallback &outColl)
+{
+  // Determine the rule's rank.
+  size_t rank = 0;
+  const DottedRule *node = &dottedRule;
+  while (!node->IsRoot()) {
+    if (node->IsNonTerminal()) {
+      ++rank;
+    }
+    node = node->GetPrev();
+  }
+
+  // Fill m_stackVec with a stack pointer for each non-terminal.
+  m_stackVec.resize(rank);
+  node = &dottedRule;
+  while (rank > 0) {
+    if (node->IsNonTerminal()) {
+      m_stackVec[--rank] = &node->GetChartCellLabel();
+    }
+    node = node->GetPrev();
+  }
+
+  // Add the (TargetPhraseCollection, StackVec) pair to the collection.
+  tmpColl.Add(tpc, m_stackVec, outColl);
+}
+
 
 }  // namespace Moses
