@@ -110,7 +110,7 @@ void ChartTranslationOptionList::Add(const TargetPhraseCollection &tpc,
                      m_collection.begin() + m_ruleLimit - 1,
                      m_collection.begin() + m_size,
                      ChartTranslationOptionOrderer());
-    m_scoreThreshold = m_collection[m_ruleLimit-1]->GetEstimateOfBestScore();
+    m_scoreThreshold = (*min_element(m_collection.begin(), m_collection.begin() + m_ruleLimit - 1, ChartTranslationOptionOrderer()))->GetEstimateOfBestScore();
     m_size = m_ruleLimit;
   }
 }
