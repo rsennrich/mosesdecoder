@@ -116,7 +116,7 @@ void ChartRuleLookupManagerMemory::GetChartRuleCollection(
       if (terminals.size() < 5) {
         for (PhraseDictionaryNodeMemory::TerminalMap::const_iterator iter = terminals.begin(); iter != terminals.end(); ++iter) {
           const Word & word = iter->first;
-          if (word == sourceWord) {
+          if (TerminalEqualityPred()(word, sourceWord)) {
             const PhraseDictionaryNodeMemory *node = & iter->second;
 #ifdef USE_BOOST_POOL
             DottedRuleInMemory *dottedRule = m_dottedRulePool.malloc();
