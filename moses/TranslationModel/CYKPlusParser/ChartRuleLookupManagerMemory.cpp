@@ -235,6 +235,9 @@ void ChartRuleLookupManagerMemory::GetNonTerminalExtensionFixedSpan(
     // non-terminal labels in phrase dictionary node
     const PhraseDictionaryNodeMemory::NonTerminalMap & nonTermMap = node->GetNonTerminalMap();
 
+    // make room for back pointer
+    m_stackVec.push_back(NULL);
+
     // loop over possible expansions of the rule
     PhraseDictionaryNodeMemory::NonTerminalMap::const_iterator p;
     PhraseDictionaryNodeMemory::NonTerminalMap::const_iterator end = nonTermMap.end();
@@ -261,9 +264,8 @@ void ChartRuleLookupManagerMemory::GetNonTerminalExtensionFixedSpan(
           }
           // create new rule
           const PhraseDictionaryNodeMemory &child = p->second;
-          m_stackVec.push_back(cellLabel);
+          m_stackVec.back() = cellLabel;
           AddAndExtend(&child, endPos);
-          m_stackVec.pop_back();
         }
       } // end of soft matches lookup
 
@@ -273,10 +275,11 @@ void ChartRuleLookupManagerMemory::GetNonTerminalExtensionFixedSpan(
       }
       // create new rule
       const PhraseDictionaryNodeMemory &child = p->second;
-      m_stackVec.push_back(cellLabel);
+      m_stackVec.back() = cellLabel;
       AddAndExtend(&child, endPos);
-      m_stackVec.pop_back();
     }
+    // remove last back pointer
+    m_stackVec.pop_back();
 }
 
 // search all nonterminal possible nonterminal extensions of a partial rule (pointed at by node) for a variable span (starting from startPos).
@@ -289,6 +292,9 @@ void ChartRuleLookupManagerMemory::GetNonTerminalExtension(
 
     // non-terminal labels in phrase dictionary node
     const PhraseDictionaryNodeMemory::NonTerminalMap & nonTermMap = node->GetNonTerminalMap();
+
+    // make room for back pointer
+    m_stackVec.push_back(NULL);
 
     // loop over possible expansions of the rule
     PhraseDictionaryNodeMemory::NonTerminalMap::const_iterator p;
@@ -307,20 +313,20 @@ void ChartRuleLookupManagerMemory::GetNonTerminalExtension(
         for (std::vector<Word>::const_iterator softMatch = softMatches.begin(); softMatch != softMatches.end(); ++softMatch) {
           const ChartCellVector &matches = fastLookup[(*softMatch)[0]->GetId()];
           for (ChartCellVector::const_iterator match = matches.begin(); match != matches.end(); ++match) {
-            m_stackVec.push_back(match->second);
+            m_stackVec.back() = match->second;
             AddAndExtend(child, match->first);
-            m_stackVec.pop_back();
           }
         }
       } // end of soft matches lookup
 
       const ChartCellVector &matches = fastLookup[targetNonTerm[0]->GetId()];
       for (ChartCellVector::const_iterator match = matches.begin(); match != matches.end(); ++match) {
-        m_stackVec.push_back(match->second);
+        m_stackVec.back() = match->second;
         AddAndExtend(child, match->first);
-        m_stackVec.pop_back();
       }
     }
+    // remove last back pointer
+    m_stackVec.pop_back();
 }
 
 }  // namespace Moses
