@@ -30,6 +30,7 @@
 #include "StackLatticeBuilder.h"
 #include "StackLatticeSearcher.h"
 #include "VarSpanTrieBuilder.h"
+#include "moses/TranslationModel/CYKPlusParser/CompletedRuleCollection.h"
 
 #include <memory>
 #include <vector>
@@ -66,15 +67,15 @@ private:
   // Define a callback type for use by StackLatticeSearcher.
   struct MatchCallback {
   public:
-    MatchCallback(const WordsRange &range,
+    MatchCallback(CompletedRuleCollection &coll,
                   ChartParserCallback &out)
-      : m_range(range)
+      : m_coll(coll)
       , m_out(out)
       , m_tpc(NULL) {}
     void operator()(const StackVec &stackVec) {
-      m_out.Add(*m_tpc, stackVec, m_range);
+      m_coll.Add(*m_tpc, stackVec, m_out);
     }
-    const WordsRange &m_range;
+    CompletedRuleCollection &m_coll;
     ChartParserCallback &m_out;
     const TargetPhraseCollection *m_tpc;
   };

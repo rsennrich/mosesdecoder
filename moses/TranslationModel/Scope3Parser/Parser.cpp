@@ -46,9 +46,12 @@ void Scope3Parser::GetChartRuleCollection(
   const size_t start = range.GetStartPos();
   const size_t end = range.GetEndPos();
 
+  // not necessary for normal search, but implements rule pruning for incremental search
+  CompletedRuleCollection tmpColl = CompletedRuleCollection();
+
   std::vector<std::pair<const UTrieNode *, const VarSpanNode *> > &pairVec = m_ruleApplications[start][end-start+1];
 
-  MatchCallback matchCB(range, outColl);
+  MatchCallback matchCB(tmpColl, outColl);
   for (std::vector<std::pair<const UTrieNode *, const VarSpanNode *> >::const_iterator p = pairVec.begin(); p != pairVec.end(); ++p) {
     const UTrieNode &ruleNode = *(p->first);
     const VarSpanNode &varSpanNode = *(p->second);
@@ -86,6 +89,13 @@ void Scope3Parser::GetChartRuleCollection(
       }
     }
   }
+
+  for (std::vector<CompletedRule*>::const_iterator iter = tmpColl.begin(); iter != tmpColl.end(); ++iter) {
+    outColl.Add((*iter)->GetTPC(), (*iter)->GetStackVector(), range);
+  }
+
+  tmpColl.Clear();
+
 }
 
 void Scope3Parser::Init()
