@@ -22,6 +22,7 @@
 
 #include "moses/ChartParser.h"
 #include "moses/InputType.h"
+#include "moses/Terminal.h"
 #include "moses/ChartParserCallback.h"
 #include "moses/StaticData.h"
 #include "moses/NonTerminal.h"
@@ -191,7 +192,7 @@ void ChartRuleLookupManagerMemory::GetTerminalExtension(
     if (terminals.size() < 5) {
       for (PhraseDictionaryNodeMemory::TerminalMap::const_iterator iter = terminals.begin(); iter != terminals.end(); ++iter) {
         const Word & word = iter->first;
-        if (word == sourceWord) {
+        if (TerminalEqualityPred()(word, sourceWord)) {
           const PhraseDictionaryNodeMemory *child = & iter->second;
           AddAndExtend(child, pos);
           break;
