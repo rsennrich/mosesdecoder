@@ -68,7 +68,7 @@ void CompletedRuleCollection::Add(const TargetPhraseCollection &tpc,
                      m_collection.begin() + m_ruleLimit - 1,
                      m_collection.end(),
                      CompletedRuleOrdered());
-    m_scoreThreshold = (*min_element(m_collection.begin(), m_collection.begin() + m_ruleLimit - 1, CompletedRuleOrdered()))->GetScoreEstimate();
+    m_scoreThreshold = m_collection[m_ruleLimit-1]->GetScoreEstimate();
     for (size_t i = 0 + m_ruleLimit; i < m_collection.size(); i++) {
       delete m_collection[i];
 
