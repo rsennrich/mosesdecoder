@@ -61,13 +61,12 @@ void ChartRuleLookupManagerMemory::GetChartRuleCollection(
 
   m_lastPos = lastPos;
   m_stackVec.clear();
+  m_stackScores.clear();
   m_outColl = &outColl;
   m_unaryPos = absEndPos-1; // rules ending in this position are unary and should not be added to collection
 
   // create/update data structure to quickly look up all chart cells that match start position and label.
-  if (startPos == absEndPos) {
-    CreateFastLookupVectors(startPos+1, lastPos);
-  }
+  CreateFastLookupVectors(startPos, absEndPos, lastPos);
 
   const PhraseDictionaryNodeMemory &rootNode = m_ruleTable.GetRootNode();
 
@@ -84,7 +83,7 @@ void ChartRuleLookupManagerMemory::GetChartRuleCollection(
   }
   // all rules starting with nonterminal
   else if (absEndPos > startPos) {
-    GetNonTerminalExtensionFixedSpan(&rootNode, startPos, absEndPos-1);
+    GetNonTerminalExtension(&rootNode, startPos);
     // all (non-unary) rules starting with terminal
     if (absEndPos == startPos+1) {
       GetTerminalExtension(&rootNode, absEndPos-1);
@@ -101,36 +100,52 @@ void ChartRuleLookupManagerMemory::GetChartRuleCollection(
 
 }
 
-// Create vector 
-void ChartRuleLookupManagerMemory::CreateFastLookupVectors(size_t firstPos,
+// Create/update vector that stores all valid ChartCellLabels for a given start position and label.
+void ChartRuleLookupManagerMemory::CreateFastLookupVectors(size_t startPos,
+    size_t origEndPos,
     size_t lastPos) {
 
-    if (firstPos > lastPos) {
-        return;
+    std::vector<size_t> endPosVec;
+    size_t numNonTerms = FactorCollection::Instance().GetNumNonTerminals();
+    m_fastLookupVector.resize(lastPos+1);
+
+    // we only need to update cell at [startPos, origEndPos-1] for initial lookup
+    if (startPos < origEndPos) {
+        endPosVec.push_back(origEndPos-1);
     }
 
-    size_t numNonTerms = FactorCollection::Instance().GetNumNonTerminals();
-
-    //re-use data structure from last step, but remove chart cells that would break max-chart-span
-    m_fastLookupVector.resize(lastPos+1);
-    for (size_t startPos = firstPos+1; startPos <= lastPos; startPos++) {
-        ChartCellMatrix & cellMatrix = m_fastLookupVector[startPos];
-        cellMatrix.resize(numNonTerms);
-        for (size_t i = 0; i < numNonTerms; i++) {
-            if (!cellMatrix[i].empty() && cellMatrix[i].back().first > lastPos) {
-                cellMatrix[i].pop_back();
+    // update all cells starting from startPos+1 for lookup of rule extensions
+    else if (startPos == origEndPos)
+    {
+        startPos++;
+        for (size_t endPos = startPos; endPos <= lastPos; endPos++) {
+            endPosVec.push_back(endPos);
+        }
+        //re-use data structure for cells with later start position, but remove chart cells that would break max-chart-span
+        for (size_t pos = startPos+1; pos <= lastPos; pos++) {
+            ChartCellMatrix & cellMatrix = m_fastLookupVector[pos];
+            cellMatrix.resize(numNonTerms);
+            for (size_t i = 0; i < numNonTerms; i++) {
+                if (!cellMatrix[i].empty() && cellMatrix[i].back().endPos > lastPos) {
+                    cellMatrix[i].pop_back();
+                }
             }
         }
     }
 
-    // populate vector with all chart cells that start at current start position (may still have some redundancy)
-    ChartCellMatrix & cellMatrix = m_fastLookupVector[firstPos];
+    if (startPos > lastPos) {
+        return;
+    }
+
+    // populate vector with all chart cells that start at current start position
+    ChartCellMatrix & cellMatrix = m_fastLookupVector[startPos];
     cellMatrix.clear();
     cellMatrix.resize(numNonTerms);
-    for (size_t endPos = firstPos; endPos <= lastPos; endPos++) {
+    for (std::vector<size_t>::iterator p = endPosVec.begin(); p != endPosVec.end(); ++p) {
 
+        size_t endPos = *p;
         // target non-terminal labels for the span
-        const ChartCellLabelSet &targetNonTerms = GetTargetLabelSet(firstPos, endPos);
+        const ChartCellLabelSet &targetNonTerms = GetTargetLabelSet(startPos, endPos);
 
         if (targetNonTerms.GetSize() == 0) {
             continue;
@@ -138,7 +153,7 @@ void ChartRuleLookupManagerMemory::CreateFastLookupVectors(size_t firstPos,
 
 #if !defined(UNLABELLED_SOURCE)
         // source non-terminal labels for the span
-        const InputPath &inputPath = GetParser().GetInputPath(firstPos, endPos);
+        const InputPath &inputPath = GetParser().GetInputPath(startPos, endPos);
         const std::vector<bool> &sourceNonTermArray = inputPath.GetNonTerminalArray();
 
         // can this ever be true? Moses seems to pad the non-terminal set of the input with [X]
@@ -150,7 +165,8 @@ void ChartRuleLookupManagerMemory::CreateFastLookupVectors(size_t firstPos,
         for (size_t i = 0; i < numNonTerms; i++) {
             const ChartCellLabel *cellLabel = targetNonTerms.Find(i);
             if (cellLabel != NULL) {
-                cellMatrix[i].push_back(ChartCellPos(endPos, cellLabel));
+                float score = cellLabel->GetBestScore(m_outColl);
+                cellMatrix[i].push_back(ChartCellCache(endPos, cellLabel, score));
             }
         }
     }
@@ -164,7 +180,7 @@ void ChartRuleLookupManagerMemory::AddAndExtend(
     const TargetPhraseCollection &tpc = node->GetTargetPhraseCollection();
     // add target phrase collection (except if rule is empty or unary)
     if (!tpc.IsEmpty() && endPos != m_unaryPos) {
-      m_completedRules[endPos].Add(tpc, m_stackVec, *m_outColl);
+      m_completedRules[endPos].Add(tpc, m_stackVec, m_stackScores, *m_outColl);
     }
 
     // get all further extensions of rule (until reaching end of sentence or max-chart-span)
@@ -208,81 +224,6 @@ void ChartRuleLookupManagerMemory::GetTerminalExtension(
     }
 }
 
-// search all nonterminal possible nonterminal extensions of a partial rule (pointed at by node) for a given span (StartPos, endPos).
-// recursively try to expand partial rules into full rules up to m_lastPos.
-void ChartRuleLookupManagerMemory::GetNonTerminalExtensionFixedSpan(
-    const PhraseDictionaryNodeMemory *node,
-    size_t startPos,
-    size_t endPos) {
-
-    // target non-terminal labels for the span
-    const ChartCellLabelSet &targetNonTerms = GetTargetLabelSet(startPos, endPos);
-
-    if (targetNonTerms.GetSize() == 0) {
-      return;
-    }
-
-#if !defined(UNLABELLED_SOURCE)
-    // source non-terminal labels for the span
-    const InputPath &inputPath = GetParser().GetInputPath(startPos, endPos);
-    const std::vector<bool> &sourceNonTermArray = inputPath.GetNonTerminalArray();
-
-    // can this ever be true? Moses seems to pad the non-terminal set of the input with [X]
-    if (inputPath.GetNonTerminalSet().size() == 0) {
-      return;
-    }
-#endif
-
-    // non-terminal labels in phrase dictionary node
-    const PhraseDictionaryNodeMemory::NonTerminalMap & nonTermMap = node->GetNonTerminalMap();
-
-    // make room for back pointer
-    m_stackVec.push_back(NULL);
-
-    // loop over possible expansions of the rule
-    PhraseDictionaryNodeMemory::NonTerminalMap::const_iterator p;
-    PhraseDictionaryNodeMemory::NonTerminalMap::const_iterator end = nonTermMap.end();
-    for (p = nonTermMap.begin(); p != end; ++p) {
-      // does it match possible source and target non-terminals?
-#if defined(UNLABELLED_SOURCE)
-      const Word &targetNonTerm = p->first;
-#else
-      const PhraseDictionaryNodeMemory::NonTerminalMapKey &key = p->first;
-      const Word &sourceNonTerm = key.first;
-      // check if source label matches
-      if (! sourceNonTermArray[sourceNonTerm[0]->GetId()]) {
-        continue;
-      }
-      const Word &targetNonTerm = key.second;
-#endif
-      //soft matching of NTs
-      if (m_isSoftMatching && !m_softMatchingMap[targetNonTerm[0]->GetId()].empty()) {
-        const std::vector<Word>& softMatches = m_softMatchingMap[targetNonTerm[0]->GetId()];
-        for (std::vector<Word>::const_iterator softMatch = softMatches.begin(); softMatch != softMatches.end(); ++softMatch) {
-          const ChartCellLabel *cellLabel = targetNonTerms.Find(*softMatch);
-          if (cellLabel == NULL) {
-            continue;
-          }
-          // create new rule
-          const PhraseDictionaryNodeMemory &child = p->second;
-          m_stackVec.back() = cellLabel;
-          AddAndExtend(&child, endPos);
-        }
-      } // end of soft matches lookup
-
-      const ChartCellLabel *cellLabel = targetNonTerms.Find(targetNonTerm);
-      if (cellLabel == NULL) {
-        continue;
-      }
-      // create new rule
-      const PhraseDictionaryNodeMemory &child = p->second;
-      m_stackVec.back() = cellLabel;
-      AddAndExtend(&child, endPos);
-    }
-    // remove last back pointer
-    m_stackVec.pop_back();
-}
-
 // search all nonterminal possible nonterminal extensions of a partial rule (pointed at by node) for a variable span (starting from startPos).
 // recursively try to expand partial rules into full rules up to m_lastPos.
 void ChartRuleLookupManagerMemory::GetNonTerminalExtension(
@@ -296,6 +237,7 @@ void ChartRuleLookupManagerMemory::GetNonTerminalExtension(
 
     // make room for back pointer
     m_stackVec.push_back(NULL);
+    m_stackScores.push_back(0);
 
     // loop over possible expansions of the rule
     PhraseDictionaryNodeMemory::NonTerminalMap::const_iterator p;
@@ -314,20 +256,23 @@ void ChartRuleLookupManagerMemory::GetNonTerminalExtension(
         for (std::vector<Word>::const_iterator softMatch = softMatches.begin(); softMatch != softMatches.end(); ++softMatch) {
           const ChartCellVector &matches = fastLookup[(*softMatch)[0]->GetId()];
           for (ChartCellVector::const_iterator match = matches.begin(); match != matches.end(); ++match) {
-            m_stackVec.back() = match->second;
-            AddAndExtend(child, match->first);
+            m_stackVec.back() = match->cellLabel;
+            m_stackScores.back() = match->score;
+            AddAndExtend(child, match->endPos);
           }
         }
       } // end of soft matches lookup
 
       const ChartCellVector &matches = fastLookup[targetNonTerm[0]->GetId()];
       for (ChartCellVector::const_iterator match = matches.begin(); match != matches.end(); ++match) {
-        m_stackVec.back() = match->second;
-        AddAndExtend(child, match->first);
+        m_stackVec.back() = match->cellLabel;
+        m_stackScores.back() = match->score;
+        AddAndExtend(child, match->endPos);
       }
     }
     // remove last back pointer
     m_stackVec.pop_back();
+    m_stackScores.pop_back();
 }
 
 }  // namespace Moses

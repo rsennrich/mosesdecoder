@@ -36,12 +36,24 @@ namespace Moses
 class ChartParserCallback;
 class WordsRange;
 
+// struct that caches cellLabel, its end position and score for quicker lookup
+struct ChartCellCache
+{
+    ChartCellCache(size_t endPos, const ChartCellLabel* cellLabel, float score)
+    : endPos(endPos)
+    , cellLabel(cellLabel)
+    , score(score) {}
+
+    size_t endPos;
+    const ChartCellLabel* cellLabel;
+    float score;
+};
+
 //! Implementation of ChartRuleLookupManager for in-memory rule tables.
 class ChartRuleLookupManagerMemory : public ChartRuleLookupManagerCYKPlus
 {
 public:
-  typedef std::pair<size_t, const ChartCellLabel*> ChartCellPos;
-  typedef std::vector<ChartCellPos> ChartCellVector;
+  typedef std::vector<ChartCellCache> ChartCellVector;
   typedef std::vector<ChartCellVector> ChartCellMatrix;
 
 
@@ -62,11 +74,6 @@ private:
     const PhraseDictionaryNodeMemory *node,
     size_t pos);
 
-  void GetNonTerminalExtensionFixedSpan(
-    const PhraseDictionaryNodeMemory *node,
-    size_t startPos,
-    size_t endPos);
-
   void GetNonTerminalExtension(
     const PhraseDictionaryNodeMemory *node,
     size_t startPos);
@@ -76,7 +83,8 @@ private:
     size_t endPos);
 
   void CreateFastLookupVectors(size_t startPos,
-    size_t endPos);
+    size_t endPos,
+    size_t lastPos);
 
   const PhraseDictionaryMemory &m_ruleTable;
 
@@ -91,6 +99,8 @@ private:
   size_t m_unaryPos;
 
   StackVec m_stackVec;
+  std::vector<float> m_stackScores;
+  std::vector<const Word*> m_sourceWords;
   ChartParserCallback* m_outColl;
 
   std::vector<ChartCellMatrix> m_fastLookupVector;
